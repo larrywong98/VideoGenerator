@@ -3,7 +3,8 @@
 //
 //public class VideoGenerator {
 //    static {
-//        System.loadLibrary(org.opencv.core.Core.NATIVE_LIBRARY_NAME);
+////        System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
+//        nu.pattern.OpenCV.loadShared();
 //    }
 //    public static void main(String[] args) {
 //        System.loadLibrary("ok");

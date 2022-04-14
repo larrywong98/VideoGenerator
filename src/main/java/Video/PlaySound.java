@@ -35,8 +35,6 @@ public class PlaySound {
 
 		AudioInputStream audioInputStream = null;
 		try {
-			//audioInputStream = AudioSystem.getAudioInputStream(this.waveStream);
-
 			//add buffer for mark/reset support, modified by Jian
 			InputStream bufferedIn = new BufferedInputStream(this.waveStream);
 			audioInputStream = AudioSystem.getAudioInputStream(bufferedIn);
@@ -62,17 +60,14 @@ public class PlaySound {
 
 		// Starts the music :P
 		dataLine.start();
-
 		int readBytes = 0;
 		byte[] audioBuffer = new byte[this.EXTERNAL_BUFFER_SIZE];
-
 		try {
 			while (readBytes != -1) {
-			readBytes = audioInputStream.read(audioBuffer, 0,
-				audioBuffer.length);
-			if (readBytes >= 0){
-				dataLine.write(audioBuffer, 0, readBytes);
-			}
+				readBytes = audioInputStream.read(audioBuffer, 0,audioBuffer.length);
+				if (readBytes >= 0){
+					dataLine.write(audioBuffer, 0, readBytes);
+				}
 			}
 		} catch (IOException e1) {
 			throw new PlayWaveException(e1);
