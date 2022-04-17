@@ -29,14 +29,11 @@ public class PlayWaveFile {
             int height = 270;
             PlayVideo playVideo = new PlayVideo(width, height);
 
-            File audioFile = new File("C:\\Users\\larry\\Documents\\VideoGenerator\\dataset\\dataset1\\Videos\\data_test1.wav");
-            InputStream audioIS = null;
-
-            audioIS = new FileInputStream(audioFile);
-
+            File audioFile = new File("/Users/zixuanli/Downloads/dataset/Videos/data_test1.wav");
+            InputStream audioIS = new FileInputStream(audioFile);
             PlaySound playSound=new PlaySound(audioIS);
 
-
+            // TODO:  sync audio with video
             playVideo.Play();
             playSound.play();
 
