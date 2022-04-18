@@ -126,7 +126,10 @@ public class PlayVideo {
             int frameIndex=0;
             int r,g,b;
             long start = System.currentTimeMillis();
+
+            double fps = (1.0 / 30) * 1000;
             while ((videoInputStream.read(videoBuffer, 0, videoBuffer.length)) != -1) {
+                long millis_prev = System.currentTimeMillis();
 //                System.out.println(frameIndex);
 
                 // read current frame
@@ -196,11 +199,12 @@ public class PlayVideo {
                     }
                 }
 
-
                 HighGui.imshow("Video", mat);
                 HighGui.imshow("mask", mask);
-                HighGui.waitKey(8);
+                long millis_spent = System.currentTimeMillis() - millis_prev;
+                HighGui.waitKey((int)(fps - (int)millis_spent));  // for 30 fps
             }
+
             long finish = System.currentTimeMillis();
             long timeElapsed = finish - start;
             System.out.println("timeElapsed:" + timeElapsed);
