@@ -128,8 +128,8 @@ public class PlayVideo {
             long start = System.currentTimeMillis();
 
             double fps = (1.0 / 30) * 1000;
+            long millis_prev = System.currentTimeMillis();
             while ((videoInputStream.read(videoBuffer, 0, videoBuffer.length)) != -1) {
-                long millis_prev = System.currentTimeMillis();
 //                System.out.println(frameIndex);
 
                 // read current frame
@@ -163,7 +163,6 @@ public class PlayVideo {
 
                 // threshold HSV image to select brands
                 for (Map.Entry<String, ArrayList<Scalar>> brand : brands.entrySet()) {
-//                    mask = new Mat();
                     Boolean masked = false;
                     for (Scalar brand_color : brand.getValue()) {
                         Mat mask_color = new Mat();
@@ -191,7 +190,7 @@ public class PlayVideo {
 
                     // if any contour exist
                     if (hierarchy.size().height > 0 && hierarchy.size().width > 0) {
-                        System.out.println("Detect LOGO: " + brand.getKey() + "!!!");
+//                        System.out.println("Detect LOGO: " + brand.getKey() + "!!!");
                         // for each contour, display it in white
                         for (int idx = 0; idx >= 0; idx = (int) hierarchy.get(0, idx)[0]) {
                             Imgproc.drawContours(mat, contours, idx, new Scalar(250, 255, 255));
@@ -200,9 +199,10 @@ public class PlayVideo {
                 }
 
                 HighGui.imshow("Video", mat);
-                HighGui.imshow("mask", mask);
+//                HighGui.imshow("mask", mask);
                 long millis_spent = System.currentTimeMillis() - millis_prev;
                 HighGui.waitKey((int)(fps - (int)millis_spent));  // for 30 fps
+                millis_prev = System.currentTimeMillis();
             }
 
             long finish = System.currentTimeMillis();

@@ -34,7 +34,7 @@ public class PlayWaveFile {
             PlaySound playSound=new PlaySound(audioIS);
 
             // TODO:  sync audio with video
-            playVideo.Play();
+//            playVideo.Play();
             playSound.play();
 
         } catch (FileNotFoundException e) {
