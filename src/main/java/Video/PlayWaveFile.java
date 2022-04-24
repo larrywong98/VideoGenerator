@@ -29,17 +29,17 @@ public class PlayWaveFile {
             int height = 270;
             PlayVideo playVideo = new PlayVideo(width, height);
 
-            File audioFile = new File("/Users/zixuanli/Downloads/dataset/Videos/data_test1.wav");
-            InputStream audioIS = new FileInputStream(audioFile);
-            PlaySound playSound=new PlaySound(audioIS);
+            File audioFile = new File("/Users/zixuanli/Downloads/dataset2/Videos/data_test2.wav");
+            PlaySound playSound=new PlaySound();
 
             // TODO:  sync audio with video
 //            playVideo.Play();
-            playSound.play();
+            playSound.play(audioFile);
 
         } catch (FileNotFoundException e) {
             e.printStackTrace();
-        } catch (PlayWaveException e) {
+        }
+        catch (PlayWaveException e) {
             e.printStackTrace();
         }
 
