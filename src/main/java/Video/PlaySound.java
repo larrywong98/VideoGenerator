@@ -18,22 +18,151 @@ public class PlaySound {
 	private AudioFormat audioFormat;
 	private SourceDataLine dataLine = null;
 	private int pitch_below = 2000;  // human pitch 40-4000 hz
-	private int pitch_above = 2180;
+	private int pitch_above = 2200;
 	private int bin_size = sampleRate / 2 / (EXTERNAL_BUFFER_SIZE / 2);
 	private int bin_below = pitch_below / bin_size, bin_above = pitch_above / bin_size;
 	private int bin_count = bin_above - bin_below;
-	private int duration = (int)(15 * (sampleRate * sampleSize / EXTERNAL_BUFFER_SIZE));
+//	private int duration = (int)(15 * (sampleRate * sampleSize / EXTERNAL_BUFFER_SIZE));
 	private HashMap<Integer, ArrayList<Double>> hz_to_mag = new HashMap<Integer,  ArrayList<Double>>();
 	private ArrayList<byte[]> allBytes;
+	private ArrayList<Integer> allMag = new ArrayList<Integer>();
+	private double avgMag;
 
     /**
-     * Read input file and process with FTT and RMS
+     * Read input file and process
      */
     public void play(File audioFile) throws PlayWaveException, FileNotFoundException {
     	allBytes = readWav(audioFile);  // read file and save
 
+		// detect ad option 1: use human eyes to find estimate timestamp on freq graph
+		// below is an example for test2
+		ArrayList<Integer> human_timestamps = new ArrayList<>(Arrays. asList(0, 87, 1171, 1261));
+
+		// detect ad option 2: use audio frequency to find timestamps
+		ArrayList<Integer> timestamps = detectAds();
+		System.out.println("avgMag: " + avgMag);
+		for (Integer i : timestamps) System.out.println(i);
+
+		// detect ad option 3: get frame indexes from video part and translate into timestamp
+		// below is an example for translation frame 0
+		int ts_eg = videoFrameToTimestamp(0);
+
+		// output option 1: remove ads and save as removeAds.wav
+		// note: this func returns arraylist<byte[]> in case you need chunks for better synchronization
+		removeAds(timestamps);
+
+		// output option 2: replace original ads with given ads, save as replaceAds.wav
+		// note: this func returns arraylist<byte[]> in case you need chunks for better synchronization
+		replaceAds(timestamps, "/Users/zixuanli/Downloads/dataset2/Ads/mcd_Ad_15s",
+				"/Users/zixuanli/Downloads/dataset2/Ads/nfl_Ad_15s");
+    }
+
+	/**
+	 * Any large deviations from the mean could be seen as potential ad/noise.
+	 * Use this intuition to find starting/ending timestamps for 2 ads
+	 * @return starting/ending timestamps for 2 ads
+	 */
+    private ArrayList<Integer> detectAds() {
+    	calculateStats();
+
+		/*
+		NOTE: tune based on test
+		test1: mag_threshold = 20, ts_threshold = 15, ad_duration = 50
+			   return [0, 52], [1175, 1257]
+		test2: mag_threshold = 55, ts_threshold = 10, ad_duration = 60
+		       return [413, 555], [1084, 1258]
+		 */
+    	int n = allMag.size(), mag_threshold = 20, ts_threshold = 15, ad_duration = 50;
+
+		// find large deviation and merge into intervals -> potential ads/noise
+		ArrayList<int[]> intervals = new ArrayList<>();
+		for (int i = 0; i < n; i++) {
+			if (Math.abs(allMag.get(i) - avgMag) > mag_threshold) {
+				if (intervals.isEmpty() || intervals.get(intervals.size() - 1)[1] + ts_threshold < i) {
+					intervals.add(new int[]{i, i});
+				} else {
+					intervals.set(intervals.size() - 1, new int[]{intervals.get(intervals.size() - 1)[0], i});
+				}
+			}
+		}
+
+		// get rid of intervals with length < ad_duration
+		for (int i = 0; i < intervals.size(); i++) {
+			if (intervals.get(i)[1] - intervals.get(i)[0] < ad_duration) {
+				intervals.remove(i);
+				i--;
+			}
+		}
+
+		ArrayList<Integer> timestamps = new ArrayList<>();
+		for (int[] i : intervals) {
+			timestamps.add(i[0]);
+			timestamps.add(i[1]);
+		}
+
+		return timestamps;
+	}
+
+
+	/**
+	 * Transform 30 fps video frame to corresponding audio buffer timestamp
+	 * @param frame: actual frame index of video
+	 * @return corresponding timestamp in audio buffer
+	 */
+	public int videoFrameToTimestamp(int frame) {
+		int timestampPerSec = (int)(sampleRate * sampleSize / EXTERNAL_BUFFER_SIZE);
+		return (int)(timestampPerSec * frame / 30.0);
+	}
+
+	/**
+	 * Replace two ads with given ads at 2 timestamps
+	 * @param timeStamps: starting/ending timestamp of ads
+	 * @return 2 or 3 clips w/o ads
+	 */
+    public ArrayList<byte[]> removeAds(ArrayList<Integer> timeStamps) {
+		ArrayList<byte[]> res = new ArrayList<byte[]>();
+		byte[] clip;
+		clip = concatBetween(0, timeStamps.get(0));	// before first ad
+		if (clip.length > 0) res.add(clip);
+		clip = concatBetween(timeStamps.get(1), timeStamps.get(2));	// between first ad and second ad
+		if (clip.length > 0) res.add(clip);
+		clip = concatBetween(timeStamps.get(3), allBytes.size());	// after second ad
+		if (clip.length > 0) res.add(clip);
+
+		saveWav(res, "removeAds.wav");
+		return res;
+	}
+
+	/**
+	 * Replace two ads with given ads at 2 timestamps
+	 * @param timeStamps: starting/ending timestamp of ads
+	 * @param path_1: valid file path of ad 1
+	 * @param path_2: valid file path of ad 2
+	 * @return 4 or 5 clips w/ replaced ads
+	 */
+	public ArrayList<byte[]> replaceAds(ArrayList<Integer> timeStamps, String path_1, String path_2) throws PlayWaveException, FileNotFoundException {
+		byte[] ad_1 = readAd(path_1), ad_2 = readAd(path_2);
+
+		ArrayList<byte[]> res = new ArrayList<byte[]>();
+		byte[] clip;
+		clip = concatBetween(0, timeStamps.get(0));	// before first ad
+		if (clip.length > 0) res.add(clip);
+		res.add(ad_1);	// first ad
+		clip = concatBetween(timeStamps.get(1), timeStamps.get(2));	// between first ad and second ad
+		if (clip.length > 0) res.add(clip);
+		res.add(ad_2);	// second ad
+		clip = concatBetween(timeStamps.get(3), allBytes.size());	// after second ad
+		if (clip.length > 0) res.add(clip);
+
+		saveWav(res, "replaceAds.wav");
+		return res;
+	}
+
+	/**
+	 * helper function: get rms and rms of freq magnitudes for whole audio
+	 */
+	private void calculateStats() {
 		final FFTFactory.JavaFFT fft = new FFTFactory.JavaFFT(EXTERNAL_BUFFER_SIZE / (int)sampleSize);
-		double prev_E = 0, curr_E;
 		int timer = 0;
 		for (byte[] audioBuffer : allBytes) {
 			final float[] samples = decode(audioBuffer, audioFormat);
@@ -49,18 +178,16 @@ public class PlaySound {
 				sum += magnitudes[i] * magnitudes[i];
 			}
 			double rms_freq = Math.sqrt(sum / bin_count);
-			double rms = RMS(audioBuffer);
-
-//			System.out.println(timer++ + ", "  + rms_freq + ", " + rms);
+			allMag.add((int)rms_freq);
+			avgMag += rms_freq / allBytes.size();
+//			System.out.println(timer++ + ", "  + rms_freq);
 		}
 //			saveFreqMap();
+	}
 
-
-    }
-
-    /**
-     * Read input wav file and return as list of byte array
-     */
+	/**
+	 * helper function: Read input wav file and return as list of byte array
+	 */
 	private ArrayList<byte[]> readWav(File audioFile) throws PlayWaveException, FileNotFoundException {
 		ArrayList<byte[]> res = new ArrayList<byte[]>();
 		AudioInputStream audioInputStream = null;
@@ -113,52 +240,7 @@ public class PlaySound {
 	}
 
 	/**
-	 * Replace two ads with given ads at 2 timestamps
-	 * @param timeStamp_1: starting frame of ad1
-	 * @param timeStamp_2: starting frame of ad2
-	 * @return 2 or 3 clips w/o ads
-	 */
-    private ArrayList<byte[]> removeAds(int timeStamp_1, int timeStamp_2) {
-		ArrayList<byte[]> res = new ArrayList<byte[]>();
-		byte[] clip;
-		clip = concatBetween(0, timeStamp_1);	// before first ad
-		if (clip.length > 0) res.add(clip);
-		clip = concatBetween(timeStamp_1 + duration, timeStamp_2);	// between first ad and second ad
-		if (clip.length > 0) res.add(clip);
-		clip = concatBetween(timeStamp_2 + duration, allBytes.size());	// after second ad
-		if (clip.length > 0) res.add(clip);
-
-		saveWav(res, "removeAds.wav");
-		return res;
-	}
-
-	/**
-	 * Replace two ads with given ads at 2 timestamps
-	 * @param timeStamp_1: starting frame of ad1
-	 * @param timeStamp_2: starting frame of ad2
-	 * @param path_1: file path of given ads
-	 * @return 4 or 5 clips w/ replaced ads
-	 */
-	private ArrayList<byte[]> replaceAds(int timeStamp_1, int timeStamp_2, String path_1, String path_2) throws PlayWaveException, FileNotFoundException {
-		byte[] ad_1 = readAd(path_1), ad_2 = readAd(path_2);
-
-		ArrayList<byte[]> res = new ArrayList<byte[]>();
-		byte[] clip;
-		clip = concatBetween(0, timeStamp_1);	// before first ad
-		if (clip.length > 0) res.add(clip);
-		res.add(ad_1);	// first ad
-		clip = concatBetween(timeStamp_1 + duration, timeStamp_2);	// between first ad and second ad
-		if (clip.length > 0) res.add(clip);
-		res.add(ad_2);	// second ad
-		clip = concatBetween(timeStamp_2 + duration, allBytes.size());	// after second ad
-		if (clip.length > 0) res.add(clip);
-
-		saveWav(res, "replaceAds.wav");
-		return res;
-	}
-
-	/**
-	 * Read ad with given filename
+	 * helper function: Read ad with given filename
 	 * @param filename
 	 * @return single byte array carrying all frames in ad
 	 */
@@ -180,7 +262,7 @@ public class PlaySound {
 	}
 
 	/**
-	 * Save given byte array to wav file.
+	 * helper function: Save given byte array to wav file.
 	 * @param input: list of byte array
 	 * @param filename: wav file name
 	 */
@@ -199,7 +281,7 @@ public class PlaySound {
 	}
 
 	/**
-	 * Concatenate frames between two timestamp
+	 * helper function: Concatenate frames between two timestamp
 	 * @param start: start timestamp
 	 * @param end: end timestamp
 	 * @return byte array carrying frames between two given timestamps
@@ -219,7 +301,7 @@ public class PlaySound {
 	}
 
 	/**
-	 * Concatenate two byte array
+	 * helper function: Concatenate two byte array
 	 */
 	private byte[] concatByte(byte[] a, byte[] b) {
 		byte[] destination = new byte[a.length + b.length];
@@ -246,7 +328,7 @@ public class PlaySound {
 	}
 
 	/**
-	 * Save <frequency: magnitudes> into text file
+	 * Save <frequency : magnitudes over time> into text file
 	 */
     private void saveFreqMap() {
 		ArrayList<Integer> sortedKeys
@@ -269,7 +351,7 @@ public class PlaySound {
 	}
 
 	/**
-	 * Calculate magnitude for each frequency
+	 * helper function: Calculate magnitude for each frequency
 	 * @return magnitudes
 	 */
 	private static double[] toMagnitudes(final float[] realPart, final float[] imaginaryPart) {
@@ -308,7 +390,7 @@ public class PlaySound {
 	}
 
 	/**
-	 * Calculate Root Mean Square over given byte array
+	 * helper function: Calculate Root Mean Square over given byte array
 	 */
     private double RMS(byte[] raw) {
 		double sum = 0.0;
