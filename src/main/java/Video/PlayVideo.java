@@ -25,7 +25,7 @@ public class PlayVideo {
         HashMap<String, ArrayList<Scalar>> res = new HashMap<>();
         try
         {
-            File dir = new File("/Users/zixuanli/Downloads/dataset/Brand_Images");
+            File dir = new File("C:\\Users\\larry\\Documents\\VideoGenerator\\dataset\\dataset2\\Videos\\Brand_Images");
             File[] files = dir.listFiles((d, name) -> name.endsWith(".rgb"));
 
             for (File file : files) {
@@ -68,7 +68,7 @@ public class PlayVideo {
 
                 Imgcodecs imageCodecs = new Imgcodecs();
                 //Writing the image
-                imageCodecs.imwrite("/Users/zixuanli/Downloads/output.jpg", hsvImage);
+                imageCodecs.imwrite("output.jpg", hsvImage);
 
                 // get all color
                 HashMap<Integer, int[]> colors = new HashMap<Integer, int[]>();  // map<hue, [count, s, v]>
@@ -116,7 +116,7 @@ public class PlayVideo {
 
     public void Play() {
         try {
-            File videoFile = new File("/Users/zixuanli/Downloads/dataset/Videos/data_test1.rgb");
+            File videoFile = new File("C:\\Users\\larry\\Documents\\VideoGenerator\\dataset\\dataset2\\Videos\\data_test1.rgb");
             InputStream videoIS = new FileInputStream(videoFile);
             //BGR
             byte[] videoBuffer = new byte[width * height * 3];

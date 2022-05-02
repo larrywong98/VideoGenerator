@@ -53,8 +53,8 @@ public class PlaySound {
 
 		// output option 2: replace original ads with given ads, save as replaceAds.wav
 		// note: this func returns arraylist<byte[]> in case you need chunks for better synchronization
-		replaceAds(timestamps, "/Users/zixuanli/Downloads/dataset2/Ads/mcd_Ad_15s",
-				"/Users/zixuanli/Downloads/dataset2/Ads/nfl_Ad_15s");
+		replaceAds(timestamps, "C:\\Users\\larry\\Documents\\VideoGenerator\\dataset\\dataset2\\Ads\\mcd_Ad_15s.wav",
+				"C:\\Users\\larry\\Documents\\VideoGenerator\\dataset\\dataset2\\Ads\\nfl_Ad_15s.wav");
     }
 
 	/**
