@@ -8,7 +8,7 @@ client = vision_v1.ImageAnnotatorClient()
 logos=[]
 
 with open("response.txt","a") as r:
-    for frameIndex in range(2400,3114):
+    for frameIndex in range(6215,6916):
         with open(f"C:\\Users\\larry\\Documents\\VideoGenerator\\dataset\\Allframes\\{frameIndex}.png", 'rb') as image_file:
             content = image_file.read()
         image_file.close()
@@ -60,14 +60,12 @@ with open("response.txt","a") as r:
 
         if logo==1:
             r.write("\n")
-        if frameIndex%1000==0:
-            time.sleep(3)
 
 r.close()
-with open("logoframe.txt","w") as f:
-    for idx,logo in enumerate(logos):
-        if idx==len(logos)-1:
-            f.write(logo)
-        else:
-            f.write(logo+",")
-f.close()
+# with open("logoframe.txt","w") as f:
+#     for idx,logo in enumerate(logos):
+#         if idx==len(logos)-1:
+#             f.write(logo)
+#         else:
+#             f.write(logo+",")
+# f.close()
