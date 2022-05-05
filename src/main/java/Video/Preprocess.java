@@ -51,7 +51,7 @@ public class Preprocess{
      */
     public void BoundingBox(){
         try {
-            BufferedReader bf  = new BufferedReader(new FileReader("box.txt"));
+            BufferedReader bf  = new BufferedReader(new FileReader("box"+"5"+".txt"));
             String line = bf.readLine();
             while(line!=null){
                 String[] lineArr=line.split(",");
