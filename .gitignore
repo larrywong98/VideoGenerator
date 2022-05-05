@@ -1,6 +1,6 @@
 .idea
 dataset/
 target/
+tessdata/
 removeAds.wav
 replaceAds.wav
-ReadMe.txt

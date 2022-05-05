@@ -25,7 +25,7 @@ public class Player implements Runnable{
     public static Boolean stop;
     // 4800 5999
     public static final int EXTERNAL_BUFFER_SIZE= 4800;
-    public static final int audioFrameCount=6200;
+    public static final int audioFrameCount=6035;
     public static byte[][] audioData=new byte[audioFrameCount][EXTERNAL_BUFFER_SIZE];//0.05s
     public static int videoFrameIndex=0;
     private SourceDataLine dataLine;
@@ -122,7 +122,7 @@ class VideoPlay implements Runnable {
     private BufferedInputStream videoInputStream;
     private byte[] videoBuffer;
     private final String initFramePath="initframe.png";
-    private final double fps = (1.0 / 32.3) * 1000;
+    private final double fps = (1.0 / 32.4) * 1000;
 //    private String videoFilePath;
     private int width;
     private int height;
@@ -276,7 +276,6 @@ class VideoPlay implements Runnable {
      */
     public void run() {
         try {
-
             while(true){
                 videoIS = new FileInputStream(videoFile);
                 videoBuffer = new byte[width * height * 3];
@@ -286,14 +285,13 @@ class VideoPlay implements Runnable {
                 long start= System.currentTimeMillis();
                 brands = readBrands();
                 int readBytes = 0;
-                Player.play=true;
+//                Player.play=true;
                 while(Player.play==false){
                     TimeUnit.MILLISECONDS.sleep(10);
                 }
 
-//                // jump frame test1 2300 5300
-                // test2 2100 4100
-                while(Player.videoFrameIndex<6040){
+                // 2585 3035 7006 7455
+                while(Player.videoFrameIndex<4100){
                     videoInputStream.read(videoBuffer, 0, videoBuffer.length);
                     Player.videoFrameIndex++;
                 }
@@ -305,11 +303,11 @@ class VideoPlay implements Runnable {
                 int preFrameNanosDiff=0;
                 int waitMills=0;
                 int waitNanos=0;
-                double maxEntropy=0;
-                double prevSumDiff=0;
+//                double maxEntropy=0;
+//                double prevSumDiff=0;
                 ArrayList<Integer> rawTimeStamps = new ArrayList<>();
                 ArrayList<Integer> timeStamps = new ArrayList<>();
-                int[] previousR=new int[width * height];
+//                int[] previousR=new int[width * height];
 
 
                 while(readBytes!=-1){
@@ -327,21 +325,21 @@ class VideoPlay implements Runnable {
                             if (g < 0) g += 256;
                             if (b < 0) b += 256;
                             pixel = new double[]{b, g, r};
-                            sumdiff += Math.abs(r - previousR[y * width + x]);
-                            previousR[y * width + x]=r;
+//                            sumdiff += Math.abs(r - previousR[y * width + x]);
+//                            previousR[y * width + x]=r;
                             mat.put(y, x, pixel);
                         }
                     }
-                    if (sumdiff > 7900000) {
-                        System.out.println(sumdiff + " " + (sumdiff - prevSumDiff) + " " + Player.videoFrameIndex);
-                    }
-                    prevSumDiff = sumdiff;
-                    
+//                    if (sumdiff > 7900000) {
+//                        System.out.println(sumdiff + " " + (sumdiff - prevSumDiff) + " " + Player.videoFrameIndex);
+//                    }
+//                    prevSumDiff = sumdiff;
+//
 //                    if(Player.videoFrameIndex>6200 && Player.videoFrameIndex<7000){
 //                        Imgcodecs.imwrite("dataset\\ad6_hrc\\hrc"+Player.videoFrameIndex+".png",mat);
 //                    }
 //                    Imgcodecs.imwrite("dataset\\Allframes\\"+Player.videoFrameIndex+".png",mat);
-
+//
 
 //                    //opencv image to swing
                     MatOfByte matOfByte = new MatOfByte();
