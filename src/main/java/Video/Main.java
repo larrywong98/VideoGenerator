@@ -1,5 +1,7 @@
 package Video;
 
+import java.util.ArrayList;
+
 public class Main {
 
     /**
@@ -17,12 +19,26 @@ public class Main {
     public static void main(String[] args) {
 //        Thread preProcess=new Thread(new Preprocess(args[0],args[1],args[2],args[3],args[4],args[5]));
 //        preProcess.start();
+        String[] test_args = {"/Users/zixuanli/Downloads/dataset/Videos/data_test1.rgb",
+                "/Users/zixuanli/Downloads/dataset/Videos/data_test1.wav",
+                "/Users/zixuanli/Downloads/dataset/Videos/data_test1.wav",
+                "/Users/zixuanli/Downloads/dataset/Videos/data_test1.wav",
+                "/Users/zixuanli/Downloads/dataset/Videos/data_test1.wav",
+                "/Users/zixuanli/Downloads/dataset/Videos/data_test1.wav"
+        };
+        Preprocess process = new Preprocess(test_args[0],test_args[1],test_args[2],test_args[3],test_args[4],test_args[5]);
+        ArrayList<Integer>[] timestamps = process.syncTimestamp();
+        System.out.println("video_ts: ");
+        for (Integer i : timestamps[0]) System.out.println(i);
+        System.out.println("audio_ts: ");
+        for (Integer i : timestamps[1]) System.out.println(i);
 
-
-        Preprocess process=new Preprocess(args[0],args[1],args[2],args[3],args[4],args[5]);
+/*
+        Preprocess process = new Preprocess(args[0],args[1],args[2],args[3],args[4],args[5]);
         process.process();
-        Thread playerThread=new Thread(new Player("test.rgb","replaceAds.wav"));
+        Thread playerThread = new Thread(new Player("test.rgb","replaceAds.wav"));
         playerThread.start();
+        */
 //        Thread playerThread=new Thread(new Player(args[0],args[1]));
 //        playerThread.start();
 
