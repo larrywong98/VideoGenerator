@@ -18,7 +18,6 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
 import static org.opencv.core.CvType.CV_8UC3;
 
 public class Player implements Runnable{
@@ -47,6 +46,7 @@ public class Player implements Runnable{
             dataLine.start();
             int readBytes = 0;
             int second=0;
+            //read audio to memory
             while(readBytes!=-1){
                 byte[] audioBuffer = new byte[Player.EXTERNAL_BUFFER_SIZE];
                 readBytes = audioInputStream.read(audioBuffer, 0, audioBuffer.length);
@@ -122,8 +122,8 @@ class VideoPlay implements Runnable {
     private BufferedInputStream videoInputStream;
     private byte[] videoBuffer;
     private final String initFramePath="initframe.png";
-    private final double fps = (1.0 / 32.2) * 1000;
-    //    private String videoFilePath;
+    private final double fps = (1.0 / 32.3) * 1000;
+//    private String videoFilePath;
     private int width;
     private int height;
     private HashMap<String, ArrayList<Scalar>> brands;
@@ -197,21 +197,12 @@ class VideoPlay implements Runnable {
         {
             File dir = new File("dataset");
             File[] files= dir.listFiles((d, name) -> name.endsWith("_logo.rgb"));
-//            files[0]=new File("dataset\\starbucks_logo.rgb");
-//            files[1]=new File("dataset\\subway_logo.rgb");
-//
-//            files= dir.listFiles((d, name) -> name.endsWith(".rgb"));
-
-
             for (File file : files) {
                 RandomAccessFile raf = new RandomAccessFile(file, "r");
                 raf.seek(0);
-
                 Mat mat = new Mat(height, width, CV_8UC3, new Scalar(0,0,0));
-
                 byte[] bytes = new byte[width * height * 3];
                 raf.read(bytes);
-
                 int gap = 256 / 16;
                 ArrayList<Integer> quant_vals = new ArrayList<Integer>();
                 for (int i = gap - 1; i < 256; i += gap) {
@@ -223,16 +214,13 @@ class VideoPlay implements Runnable {
                         r = bytes[x + y * width];
                         g = bytes[x + y * width + height * width];
                         b = bytes[x + y * width + height * width * 2];
-
                         if (r < 0) r += 256;
                         if (g < 0) g += 256;
                         if (b < 0) b += 256;
-
                         // map to corresponding range
                         r = quant_vals.get(r / gap);
                         g = quant_vals.get(g / gap);
                         b = quant_vals.get(b / gap);
-
                         double[] pixel = {b, g, r};
                         mat.put(y, x, pixel);
                     }
@@ -240,11 +228,8 @@ class VideoPlay implements Runnable {
 
                 Mat hsvImage = new Mat();
                 Imgproc.cvtColor(mat, hsvImage, Imgproc.COLOR_BGR2HSV);
-
                 Imgcodecs imageCodecs = new Imgcodecs();
-                //Writing the image
                 imageCodecs.imwrite("output.jpg", hsvImage);
-
                 // get all color
                 HashMap<Integer, int[]> colors = new HashMap<Integer, int[]>();  // map<hue, [count, s, v]>
                 for (int x = 0; x < width; x++) {
@@ -259,7 +244,6 @@ class VideoPlay implements Runnable {
                         }
                     }
                 }
-
                 // get top n dominant colors -> at least 70% of all pixels
                 Map<Integer, int[]> sorted_colors = colors.entrySet().stream()
                         .sorted((e1, e2) -> Integer.compare(e2.getValue()[0], e1.getValue()[0]))
@@ -276,9 +260,8 @@ class VideoPlay implements Runnable {
                     pix_count += e.getValue()[0];
 //                    System.out.println(e.getKey() + ": " + e.getValue()[0] + ", " + e.getValue()[1] + ", " + e.getValue()[2]);
                 }
-
                 res.put(file.getName(), brand_values);
-//                System.out.println("start parsing next");
+                System.out.println("start parsing next");
             }
         } catch (FileNotFoundException e) {
             e.printStackTrace();
@@ -287,7 +270,6 @@ class VideoPlay implements Runnable {
         }
         return res;
     }
-
 
     /**
      * Video Play with 30 fps
@@ -304,16 +286,17 @@ class VideoPlay implements Runnable {
                 long start= System.currentTimeMillis();
                 brands = readBrands();
                 int readBytes = 0;
-//                Player.play=true;
+                Player.play=true;
                 while(Player.play==false){
                     TimeUnit.MILLISECONDS.sleep(10);
                 }
 
-                // jump frame test1 2300 5300
-//                while(Player.videoFrameIndex<5300){
-//                    videoInputStream.read(videoBuffer, 0, videoBuffer.length);
-//                    Player.videoFrameIndex++;
-//                }
+//                // jump frame test1 2300 5300
+                // test2 2100 4100
+                while(Player.videoFrameIndex<6040){
+                    videoInputStream.read(videoBuffer, 0, videoBuffer.length);
+                    Player.videoFrameIndex++;
+                }
 
                 long timeSpent=0;
                 long millis_prev = System.currentTimeMillis();
@@ -322,11 +305,18 @@ class VideoPlay implements Runnable {
                 int preFrameNanosDiff=0;
                 int waitMills=0;
                 int waitNanos=0;
+                double maxEntropy=0;
+                double prevSumDiff=0;
+                ArrayList<Integer> rawTimeStamps = new ArrayList<>();
+                ArrayList<Integer> timeStamps = new ArrayList<>();
+                int[] previousR=new int[width * height];
 
 
                 while(readBytes!=-1){
 //                while (Player.videoFrameIndex<900) {
                     readBytes=videoInputStream.read(videoBuffer, 0, videoBuffer.length);
+                    double sumdiff=0;
+                    double[] pixel={0,0,0};
                     // read current frame
                     for (int x = 0; x < width; x++) {
                         for (int y = 0; y < height; y++) {
@@ -336,70 +326,29 @@ class VideoPlay implements Runnable {
                             if (r < 0) r += 256;
                             if (g < 0) g += 256;
                             if (b < 0) b += 256;
-                            double[] pixel = {b, g, r};
+                            pixel = new double[]{b, g, r};
+                            sumdiff += Math.abs(r - previousR[y * width + x]);
+                            previousR[y * width + x]=r;
                             mat.put(y, x, pixel);
                         }
                     }
-
-                    //detect logo
-
-                    Mat blurredImage = new Mat();
-                    Mat blurredImage_inv = new Mat();
-                    Mat hsvImage = new Mat();
-                    Mat mask = new Mat();
-                    Mat morphOutput = new Mat();
-                    ArrayList<MatOfPoint> contours = new ArrayList<>();
-                    Mat hierarchy = new Mat();
-
-                    // remove noise and convert to HSV
-                    Imgproc.blur(mat, blurredImage, new Size(7, 7));
-//                Core.bitwise_not(blurredImage, blurredImage_inv);  // ~blurredImage to avoid hue wrap around
-                    Imgproc.cvtColor(blurredImage, hsvImage, Imgproc.COLOR_BGR2HSV);
-
-                    // threshold HSV image to select brands
-                    for (Map.Entry<String, ArrayList<Scalar>> brand : brands.entrySet()) {
-                        Boolean masked = false;
-                        for (Scalar brand_color : brand.getValue()) {
-                            Mat mask_color = new Mat();
-                            Scalar min_values = new Scalar(brand_color.val[0] - 15, brand_color.val[1] - 50, brand_color.val[2] - 40);
-                            Scalar max_values = new Scalar(brand_color.val[0] + 15, brand_color.val[1] + 50, brand_color.val[2] + 40);
-                            Core.inRange(hsvImage, min_values, max_values, mask_color);
-                            if (!masked) {
-                                mask = mask_color;
-                                masked = true;
-                            }
-                            Core.bitwise_or(mask, mask_color, mask);  // merge all masks
-                        }
-
-                        // morphological operators
-                        // dilate with large element, erode with small ones
-                        Mat dilateElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(12, 12));
-                        Mat erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(6, 6));
-                        Imgproc.erode(mask, morphOutput, erodeElement);
-//                    Imgproc.erode(morphOutput, morphOutput, erodeElement);
-                        Imgproc.dilate(morphOutput, morphOutput, dilateElement);
-                        Imgproc.dilate(morphOutput, morphOutput, dilateElement);
-
-                        // find contours
-                        Imgproc.findContours(morphOutput, contours, hierarchy, Imgproc.RETR_CCOMP, Imgproc.CHAIN_APPROX_SIMPLE);
-                        if (hierarchy.size().height > 0 && hierarchy.size().width > 0) {
-                            for (int idx = 0; idx >= 0; idx = (int) hierarchy.get(0, idx)[0]) {
-                                Imgproc.drawContours(mat, contours, idx, new Scalar(250, 255, 255));
-                            }
-                        }
+                    if (sumdiff > 7900000) {
+                        System.out.println(sumdiff + " " + (sumdiff - prevSumDiff) + " " + Player.videoFrameIndex);
                     }
+                    prevSumDiff = sumdiff;
+                    
+//                    if(Player.videoFrameIndex>6200 && Player.videoFrameIndex<7000){
+//                        Imgcodecs.imwrite("dataset\\ad6_hrc\\hrc"+Player.videoFrameIndex+".png",mat);
+//                    }
+//                    Imgcodecs.imwrite("dataset\\Allframes\\"+Player.videoFrameIndex+".png",mat);
 
 
-
-
-                    //opencv image to swing
+//                    //opencv image to swing
                     MatOfByte matOfByte = new MatOfByte();
                     Imgcodecs.imencode(".jpg", mat, matOfByte);
                     lbIm1.setIcon(new ImageIcon(ImageIO.read(new ByteArrayInputStream(matOfByte.toArray()))));
                     frame.repaint();
-
                     double millis_spent = System.currentTimeMillis() - millis_prev;
-
                     // produce constant fps
                     deltaTime=fps-millis_spent;
                     if (deltaTime > 0) {
@@ -419,12 +368,10 @@ class VideoPlay implements Runnable {
                         preFrameMillsDiff += (int) deltaTime;
                         preFrameNanosDiff += (int) (1000 * (deltaTime - (int) deltaTime));
                     }
-
                     timeSpent+=System.currentTimeMillis()- millis_prev;
                     while(Player.play==false){
                         TimeUnit.MILLISECONDS.sleep(10);
                     }
-
                     Player.videoFrameIndex++;
                     millis_prev = System.currentTimeMillis();
                 }

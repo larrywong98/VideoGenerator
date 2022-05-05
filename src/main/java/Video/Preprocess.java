@@ -1,31 +1,25 @@
 package Video;
-
 import java.io.*;
 import java.util.*;
 import javax.sound.sampled.*;
 import javax.sound.sampled.DataLine.Info;
 
+
 public class Preprocess{
-    // final constants for preprocessing video
     private String videoPath;
     private String audioPath;
     private String audioAds1Path;
     private String audioAds2Path;
     private String videoAds1Path;
     private String videoAds2Path;
-    private int width=480;
-    private int height=270;
-    private boolean sameOrder;
-
-    // final constants for preprocessing audio
     private final int EXTERNAL_BUFFER_SIZE = 16384; //  sec, before: 524288 -> 128Kb
     private static final float NORMALIZATION_FACTOR_2_BYTES = Short.MAX_VALUE + 1.0f;
     private final int sampleRate = 48000;
     private final double sampleSize = 2.0;  // 2 byte
     private AudioFormat audioFormat;
     private SourceDataLine dataLine = null;
-    private int pitch_below = 2000;  // human pitch 40-4000 hz
-    private int pitch_above = 2200;
+    private int pitch_below = 800;  // human pitch 40-4000 hz
+    private int pitch_above = 1000;
     private int bin_size = sampleRate / 2 / (EXTERNAL_BUFFER_SIZE / 2);
     private int bin_below = pitch_below / bin_size, bin_above = pitch_above / bin_size;
     private int bin_count = bin_above - bin_below;
@@ -34,183 +28,72 @@ public class Preprocess{
     private ArrayList<byte[]> allBytes;
     private ArrayList<Integer> allMag = new ArrayList<Integer>();
     private double avgMag;
+    private int width=480;
+    private int height=270;
+    private boolean sameOrder;
+
+    ArrayList<ArrayList<ArrayList<Integer>>> boundingBox=new ArrayList<>();
+    ArrayList<Integer> boundingFrame=new ArrayList<>();
 
 
-    public Preprocess(String videoPath, String audioPath, String audioAds1Path, String audioAds2Path, String videoAds1Path, String videoAds2Path) {
-        this.videoPath = videoPath;
-        this.audioPath = audioPath;
-        this.audioAds1Path = audioAds1Path;
-        this.audioAds2Path = audioAds2Path;
-        this.videoAds1Path = videoAds1Path;
-        this.videoAds2Path = videoAds2Path;
-        this.sameOrder = false;
-    }
-
-    //    @Override
-    public void process() {
-        try {
-            PlayAudioFile(new File(audioPath));
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (PlayWaveException e) {
-            e.printStackTrace();
-        }
+    public Preprocess(String videoPath,String audioPath,String audioAds1Path,String audioAds2Path,String videoAds1Path,String videoAds2Path) {
+        this.videoPath=videoPath;
+        this.audioPath=audioPath;
+        this.audioAds1Path=audioAds1Path;
+        this.audioAds2Path=audioAds2Path;
+        this.videoAds1Path=videoAds1Path;
+        this.videoAds2Path=videoAds2Path;
+        this.sameOrder=false;
     }
 
     /**
-     * Replace Video with Ads corresponding to audio sequence
+     * Read bounding box
      */
-    public void replaceVideoAds(ArrayList<Integer> timeStamps,String videoAds1Path,String videoAds2Path){
+    public void BoundingBox(){
         try {
-            // read main video and 2 ads
-            File videoFile = new File(videoPath);
-            InputStream videoIS = new FileInputStream(videoFile);
-            BufferedInputStream videoInputStream = new BufferedInputStream(videoIS);
-            File videoFile1 = new File(videoAds1Path);
-            InputStream videoIS1 = new FileInputStream(videoFile1);
-            BufferedInputStream videoInputStream1 = new BufferedInputStream(videoIS1);
-            File videoFile2 = new File(videoAds2Path);
-            InputStream videoIS2 = new FileInputStream(videoFile2);
-            BufferedInputStream videoInputStream2 = new BufferedInputStream(videoIS2);
-
-            // avoid dirty buffer
-            byte[] videoBuffer = new byte[width * height *3];
-            byte[] videoBuffer1 = new byte[width * height * 3];
-            byte[] videoBuffer2 = new byte[width * height * 3];
-            int frameIndex = 0;
-            double frameCoef = 30 / 5.86;
-            int offset1 = 0;
-            int offset2 = 0;
-            FileOutputStream output = new FileOutputStream("test.rgb");
-            System.out.println("Replacing Video...");
-
-            // Appending four video fragments
-            while (frameIndex >= 0 && frameIndex < (int)(timeStamps.get(0) * frameCoef) + offset1) {
-                videoInputStream.read(videoBuffer, 0, videoBuffer.length);
-                output.write(videoBuffer);
-                frameIndex++;
-            }
-            while (frameIndex >= (int)(timeStamps.get(0) * frameCoef) + offset1 &&
-                    frameIndex < (int)(timeStamps.get(1) * frameCoef) + offset1) {
-                videoInputStream.read(videoBuffer, 0, videoBuffer.length);
-                if (sameOrder == true) {
-                    videoInputStream1.read(videoBuffer1, 0, videoBuffer1.length);
-                    output.write(videoBuffer1);
-                } else {
-                    videoInputStream2.read(videoBuffer2, 0, videoBuffer2.length);
-                    output.write(videoBuffer2);
+            BufferedReader bf  = new BufferedReader(new FileReader("response.txt"));
+            String line = bf.readLine();
+            while(line!=null){
+                String[] lineArr=line.split(",");
+                int frameIndex=Integer.parseInt(line.split(",")[0]);
+                boundingFrame.add(frameIndex);
+                int j=0;
+                ArrayList<ArrayList<Integer>> tmp=new ArrayList<>();
+//                System.out.println(lineArr.length);
+                for(int i=1;i<lineArr.length;i++){
+                    String coor[]=lineArr[i].split(" ");
+//                    System.out.println(Integer.parseInt(coor[0]));
+                    ArrayList<Integer> elem=new ArrayList<Integer>(2);
+                    elem.add(Integer.parseInt(coor[0]));//Integer.parseInt(coor[0])
+                    elem.add(Integer.parseInt(coor[1]));//Integer.parseInt(coor[1])
+                    if(i==1)tmp.add(elem);
+                    else tmp.add(j,elem);
                 }
-                frameIndex++;
+                boundingBox.add(tmp);
+                j++;
+                line = bf.readLine();
             }
-            while (frameIndex >= (int)(timeStamps.get(1) * frameCoef) + offset1 &&
-                    frameIndex < (int)(timeStamps.get(2) * frameCoef) + offset2) {
-                videoInputStream.read(videoBuffer, 0, videoBuffer.length);
-                output.write(videoBuffer);
-                frameIndex++;
-            }
-            while (frameIndex >= (int)(timeStamps.get(2) * frameCoef) + offset2 &&
-                    frameIndex < (int)(timeStamps.get(3) * frameCoef) + offset2) {
-                videoInputStream.read(videoBuffer, 0, videoBuffer.length);
-                if (sameOrder==true) {
-                    videoInputStream2.read(videoBuffer2, 0, videoBuffer2.length);
-                    output.write(videoBuffer2);
-                } else {
-                    videoInputStream1.read(videoBuffer1, 0, videoBuffer1.length);
-                    output.write(videoBuffer1);
-                }
-                frameIndex++;
-            }
-            while (frameIndex >= (int)(timeStamps.get(3) * frameCoef) + offset2 && frameIndex < 9000) {
-                videoInputStream.read(videoBuffer, 0, videoBuffer.length);
-                output.write(videoBuffer);
-                frameIndex++;
-            }
-            output.close();
-            System.out.println("Video created!!!");
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
+
     }
 
-    /**
-     * Read input file and process
-     */
-    public void PlayAudioFile(File audioFile) throws PlayWaveException, FileNotFoundException {
-        allBytes = readWav(audioFile);  // read file and save
+//    @Override
+    public void process() {
+        BoundingBox();
+//        System.out.println(videoFrameToTimestamp());
+//        System.out.println(syncTimestamp()[0]);
 
-        // detect ad option 1: use human eyes to find estimate timestamp on freq graph
-        // below is an example for test1
-        ArrayList<Integer> human_timestamps = new ArrayList<>(Arrays.asList(468, 557, 1084, 1172));
-
-        // detect ad option 2: use audio frequency to find timestamps
-        ArrayList<Integer> timestamps = detectAds();
-        System.out.println("avgMag: " + avgMag);
-        for (Integer i : timestamps) System.out.println(i);
-
-        // detect ad option 3: get frame indexes from video part and translate into timestamp
-        // below is an example for translation frame 0
-        int ts_eg = videoFrameToTimestamp(0);
-
-        // output option 1: remove ads and save as removeAds.wav
-        // note: this func returns arraylist<byte[]> in case you need chunks for better synchronization
-//        removeAds(timestamps);
-
-
-        // output option 2: replace original ads with given ads, save as replaceAds.wav
-        // note: this func returns arraylist<byte[]> in case you need chunks for better synchronization
-        replaceAds(human_timestamps, audioAds1Path, audioAds2Path);
-        replaceVideoAds(human_timestamps,videoAds1Path,videoAds2Path);
-    }
-
-    /**
-     * Any large deviations from the mean could be seen as potential ad/noise.
-     * Use this intuition to find starting/ending timestamps for 2 ads
-     * @return starting/ending timestamps for 2 ads
-     */
-    private ArrayList<Integer> detectAds() {
-        calculateStats();
-
-		/*
-		NOTE: tune based on test
-		test1: 2000-2200 HZ, mag_threshold = 20, ts_threshold = 15, ad_duration = 50
-			   return [0, 52], [1175, 1257]
-		test2: 2000-2200 HZ, mag_threshold = 55, ts_threshold = 10, ad_duration = 60
-		       return [413, 555], [1084, 1258]
-		 */
-        int n = allMag.size(), mag_threshold = 20, ts_threshold = 15, ad_duration = 50, ad_max_duration = 95;
-
-        // find large deviation and merge into intervals -> potential ads/noise
-        ArrayList<int[]> intervals = new ArrayList<>();
-        for (int i = 0; i < n; i++) {
-            if (Math.abs(allMag.get(i) - avgMag) > mag_threshold) {
-                if (intervals.isEmpty() || intervals.get(intervals.size() - 1)[1] + ts_threshold < i) {
-                    intervals.add(new int[]{i, i});
-                } else {
-                    intervals.set(intervals.size() - 1, new int[]{intervals.get(intervals.size() - 1)[0], i});
-                }
-            }
+        try {
+             PlayAudioFile(new File(audioPath));
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (PlayWaveException e) {
+             e.printStackTrace();
         }
-
-        // get rid of intervals with length < ad_duration or > max duration
-        for (int i = 0; i < intervals.size(); i++) {
-            if (intervals.get(i)[1] - intervals.get(i)[0] < ad_duration) {
-                intervals.remove(i);
-                i--;
-            } else if (intervals.get(i)[1] - intervals.get(i)[0] > ad_max_duration) {
-                intervals.remove(i);
-                i--;
-            }
-        }
-
-        ArrayList<Integer> timestamps = new ArrayList<>();
-        for (int[] i : intervals) {
-            timestamps.add(i[0]);
-            timestamps.add(i[1]);
-        }
-
-        return timestamps;
     }
 
     /**
@@ -218,9 +101,11 @@ public class Preprocess{
      * TODO: pass in video_ts and audio_ts as input params
      * @return [final_video_ts, final_audio_ts]
      */
-    public ArrayList<Integer>[] syncTimestamp() {
-        ArrayList<Integer> video_ts = new ArrayList<>(Arrays.asList(3220, 3669, 4000, 4700, 5600, 5700, 6200, 7800));
-        ArrayList<Integer> audio_ts = new ArrayList<>(Arrays.asList(643, 712, 1126, 1201, 1486, 1546));
+    public ArrayList<Integer>[] syncTimestamp(ArrayList<Integer> audio_ts,ArrayList<Integer> video_ts) {
+//        System.out.println(video_ts);
+//        System.out.println(audio_ts);
+        video_ts = new ArrayList<>(Arrays.asList(3220, 3669, 4000, 4700, 5600, 5700, 6200, 7800));
+        audio_ts = new ArrayList<>(Arrays.asList(643, 712, 1126, 1201, 1486, 1546));
 
         // normalize ts and frame
         int threshold = 100, video_i = 0, audio_i = 0;
@@ -244,7 +129,6 @@ public class Preprocess{
 
         return new ArrayList[]{final_video_ts, final_audio_ts};
     }
-
     /**
      * Transform 30 fps video frame to corresponding audio buffer timestamp
      * @param frame: actual frame index of video
@@ -254,7 +138,6 @@ public class Preprocess{
         double timestampPerSec = sampleRate * sampleSize / EXTERNAL_BUFFER_SIZE;
         return (int)(timestampPerSec * frame / 30.0);
     }
-
     /**
      * Transform audio buffer timestamp to 30 fps video frame
      * @param ts: actual ts of audio
@@ -264,6 +147,258 @@ public class Preprocess{
         double timestampPerSec = sampleRate * sampleSize / EXTERNAL_BUFFER_SIZE;
         return (int)(ts / timestampPerSec * 30.0);
     }
+
+    public ArrayList<Integer> videoFrameCutTimestamp() {
+        ArrayList<Integer> rawTimeStamps = new ArrayList<>();
+        ArrayList<Integer> timeStamps = new ArrayList<>();
+        try {
+            int threshold=7000000;
+            InputStream videoIS = new FileInputStream(videoPath);
+            byte[] videoBuffer = new byte[width * height * 3];
+            int[] previousR=new int[width * height];
+            BufferedInputStream videoInputStream = new BufferedInputStream(videoIS);
+            double prevSumDiff = 0.0;
+            int readBytes = 0;
+            while (readBytes != -1) {
+                readBytes = videoInputStream.read(videoBuffer, 0, videoBuffer.length);
+                    double sumdiff = 0;
+                    for (int x = 0; x < width; x++) {
+                        for (int y = 0; y < height; y++) {
+                            int r = videoBuffer[y * width + x];
+                            if (r < 0) r += 256;
+                            sumdiff += Math.abs(r - previousR[y * width + x]);
+                            previousR[y * width + x]=r;
+                        }
+                    }
+
+                    if (sumdiff > threshold) {
+//                        System.out.println(sumdiff + " " + (sumdiff - prevSumDiff) + " " + Player.videoFrameIndex);
+                        rawTimeStamps.add(Player.videoFrameIndex);
+                    }
+                    prevSumDiff = sumdiff;
+                Player.videoFrameIndex++;
+            }
+            System.out.println(rawTimeStamps);
+            for (int i=1;i<rawTimeStamps.size()-1;i++) {
+                if(rawTimeStamps.get(i+1)-rawTimeStamps.get(i)<200){
+                    if(rawTimeStamps.get(i)-rawTimeStamps.get(i-1)>200){
+                        timeStamps.add(rawTimeStamps.get(i));
+                    }
+                    continue;
+                }else{
+                    timeStamps.add(rawTimeStamps.get(i));
+                }
+            }
+//            for (int i=0;i<rawTimeStamps.size()-1;i++){
+//                if(rawTimeStamps.get(i+1)-rawTimeStamps.get(i)<500 &&){
+//                    timeStamps.add(rawTimeStamps.get(i));
+//                }
+//                if(rawTimeStamps.get(i+1)-rawTimeStamps.get(i)<500){
+//                    timeStamps.add(rawTimeStamps.get(i));
+//                }
+//            }
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return timeStamps;
+    }
+
+    /**
+     * Replace Video with Ads corresponding to audio sequence
+     */
+    public void replaceVideoAds(ArrayList<Integer> timeStamps,String videoAds1Path,String videoAds2Path){
+
+        try {
+            // read main video and 2 ads
+            File videoFile = new File(videoPath);
+            InputStream videoIS = new FileInputStream(videoFile);
+            BufferedInputStream videoInputStream = new BufferedInputStream(videoIS);
+            File videoFile1 = new File(videoAds1Path);
+            InputStream videoIS1 = new FileInputStream(videoFile1);
+            BufferedInputStream videoInputStream1 = new BufferedInputStream(videoIS1);
+            File videoFile2 = new File(videoAds2Path);
+            InputStream videoIS2 = new FileInputStream(videoFile2);
+            BufferedInputStream videoInputStream2 = new BufferedInputStream(videoIS2);
+
+
+            // avoid dirty buffer
+            byte[] videoBuffer = new byte[width * height *3];
+            byte[] videoBuffer1 = new byte[width * height * 3];
+            byte[] videoBuffer2 = new byte[width * height * 3];
+            int frameIndex=0;
+            double frameCoef=30/5.86;
+            int offset1=0;
+            int offset2=0;
+            FileOutputStream output = new FileOutputStream("test.rgb");
+            System.out.println("Replacing Video...");
+
+            while(frameIndex>=0 && frameIndex<(int)(timeStamps.get(0)*frameCoef)+offset1){
+                videoInputStream.read(videoBuffer, 0, videoBuffer.length);
+//                System.out.println(boundingFrame.contains(frameIndex)+" "+frameIndex);
+                if(boundingFrame.contains(frameIndex)){
+//                    System.out.println(boundingBox.get(boundingFrame.indexOf(frameIndex)).size());
+                    for(int i=0;i<boundingBox.get(boundingFrame.indexOf(frameIndex)).size();i++){
+                        int coorx=boundingBox.get(boundingFrame.indexOf(frameIndex)).get(i).get(0);
+                        int coory=boundingBox.get(boundingFrame.indexOf(frameIndex)).get(i).get(1);
+                        videoBuffer[coory*width+coorx]=0;
+                        videoBuffer[coory*width+coorx+width*height]=-1;
+                        videoBuffer[coory*width+coorx+width*height*2]=-1;
+                    }
+                }
+                output.write(videoBuffer);
+                frameIndex++;
+            }
+            while(frameIndex>=(int)(timeStamps.get(0)*frameCoef)+offset1 && frameIndex<(int)(timeStamps.get(1)*frameCoef)+offset1){
+                videoInputStream.read(videoBuffer, 0, videoBuffer.length);
+                if(sameOrder==true){
+                    videoInputStream1.read(videoBuffer1, 0, videoBuffer1.length);
+                    output.write(videoBuffer1);
+                }else{
+                    videoInputStream2.read(videoBuffer2, 0, videoBuffer2.length);
+                    output.write(videoBuffer2);
+                }
+
+                frameIndex++;
+            }
+            while(frameIndex>=(int)(timeStamps.get(1)*frameCoef)+offset1 && frameIndex<(int)(timeStamps.get(2)*frameCoef)+offset2){
+                videoInputStream.read(videoBuffer, 0, videoBuffer.length);
+                output.write(videoBuffer);
+                frameIndex++;
+            }
+            while(frameIndex>=(int)(timeStamps.get(2)*frameCoef)+offset2 && frameIndex<(int)(timeStamps.get(3)*frameCoef)+offset2){
+                videoInputStream.read(videoBuffer, 0, videoBuffer.length);
+                if(sameOrder==true){
+                    videoInputStream2.read(videoBuffer2, 0, videoBuffer2.length);
+                    output.write(videoBuffer2);
+                }else{
+                    videoInputStream1.read(videoBuffer1, 0, videoBuffer1.length);
+                    output.write(videoBuffer1);
+                }
+                frameIndex++;
+            }
+            while(frameIndex>=(int)(timeStamps.get(3)*frameCoef)+offset2 && frameIndex<9000){
+                videoInputStream.read(videoBuffer, 0, videoBuffer.length);
+                if(boundingFrame.contains(frameIndex)){
+                    for(int i=0;i<boundingBox.get(boundingFrame.indexOf(frameIndex)).size();i++){
+                        int coorx=boundingBox.get(boundingFrame.indexOf(frameIndex)).get(i).get(0);
+                        int coory=boundingBox.get(boundingFrame.indexOf(frameIndex)).get(i).get(1);
+                        videoBuffer[coory*width+coorx]=0;
+                        videoBuffer[coory*width+coorx+width*height]=-1;
+                        videoBuffer[coory*width+coorx+width*height*2]=-1;
+                    }
+                }
+                output.write(videoBuffer);
+                frameIndex++;
+            }
+            output.close();
+            System.out.println("Video created!!!");
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+
+    }
+    /**
+     * Read input file and process
+     */
+    public void PlayAudioFile(File audioFile) throws PlayWaveException, FileNotFoundException {
+        allBytes = readWav(audioFile);  // read file and save
+
+        // detect ad option 1: use human eyes to find estimate timestamp on freq graph
+        // below is an example for test1
+//        ArrayList<Integer> human_timestamps = new ArrayList<>(Arrays.asList(468, 557, 1084, 1172));
+        ArrayList<Integer> human_timestamps = new ArrayList<>(Arrays.asList(4, 92, 84, 172));
+
+        // detect ad option 2: use audio frequency to find timestamps
+        ArrayList<Integer> timestamps = detectAds();
+        System.out.println("avgMag: " + avgMag);
+        for (Integer i : timestamps) System.out.println(i);
+
+        // detect ad option 3: get frame indexes from video part and translate into timestamp
+        // below is an example for translation frame 0
+//        int ts_eg = videoFrameToTimestamp();
+
+        // output option 1: remove ads and save as removeAds.wav
+        // note: this func returns arraylist<byte[]> in case you need chunks for better synchronization
+//        removeAds(timestamps);
+
+//        System.out.print(timestamps);
+        ArrayList<Integer> videoTimestamps = videoFrameCutTimestamp();
+//        System.out.print(videoTimestamps);
+        ArrayList<Integer>[] finalTimeStamps =syncTimestamp(timestamps,videoTimestamps);
+        System.out.print(finalTimeStamps[0]);
+        // output option 2: replace original ads with given ads, save as replaceAds.wav
+        // note: this func returns arraylist<byte[]> in case you need chunks for better synchronization
+
+//        replaceAds(human_timestamps, audioAds1Path, audioAds2Path);
+//        replaceVideoAds(human_timestamps,videoAds1Path,videoAds2Path);
+    }
+
+    /**
+     * Any large deviations from the mean could be seen as potential ad/noise.
+     * Use this intuition to find starting/ending timestamps for 2 ads
+     * @return starting/ending timestamps for 2 ads
+     */
+    private ArrayList<Integer> detectAds() {
+        calculateStats();
+
+		/*
+		NOTE: tune based on test
+		test1: mag_threshold = 20, ts_threshold = 15, ad_duration = 50
+			   return [0, 52], [1175, 1257]
+		test2: mag_threshold = 55, ts_threshold = 10, ad_duration = 60
+		       return [413, 555], [1084, 1258]
+		 */
+        int n = allMag.size(), mag_threshold = 25, ts_threshold = 25, ad_duration = 50, ad_max_duration = 95;;
+
+        // find large deviation and merge into intervals -> potential ads/noise
+        ArrayList<int[]> intervals = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            if (Math.abs(allMag.get(i) - avgMag) > mag_threshold) {
+                if (intervals.isEmpty() || intervals.get(intervals.size() - 1)[1] + ts_threshold < i) {
+                    intervals.add(new int[]{i, i});
+                } else {
+                    intervals.set(intervals.size() - 1, new int[]{intervals.get(intervals.size() - 1)[0], i});
+                }
+            }
+        }
+
+        // get rid of intervals with length < ad_duration
+        for (int i = 0; i < intervals.size(); i++) {
+            if (intervals.get(i)[1] - intervals.get(i)[0] < ad_duration) {
+                intervals.remove(i);
+                i--;
+            } else if (intervals.get(i)[1] - intervals.get(i)[0] > ad_max_duration) {
+                intervals.remove(i);
+                i--;
+            }
+        }
+
+        ArrayList<Integer> timestamps = new ArrayList<>();
+        for (int[] i : intervals) {
+            timestamps.add(i[0]);
+            timestamps.add(i[1]);
+        }
+
+        return timestamps;
+    }
+
+
+//    /**
+//     * Transform 30 fps video frame to corresponding audio buffer timestamp
+//     * @param frame: actual frame index of video
+//     * @return corresponding timestamp in audio buffer
+//     */
+//    public int videoFrameToTimestamp(int frame) {
+//        int timestampPerSec = (int)(sampleRate * sampleSize / EXTERNAL_BUFFER_SIZE);
+//        return (int)(timestampPerSec * frame / 30.0);
+//    }
 
 //    /**
 //     * Replace two ads with given ads at 2 timestamps
@@ -298,16 +433,16 @@ public class Preprocess{
         byte[] clip;
         clip = concatBetween(0, timeStamps.get(0));	// before first ad
         if (clip.length > 0) res.add(clip);
-        if (sameOrder) {
+        if(sameOrder){
             res.add(ad_1);
-        } else {
+        }else{
             res.add(ad_2);
         }
         clip = concatBetween(timeStamps.get(1), timeStamps.get(2));	// between first ad and second ad
         if (clip.length > 0) res.add(clip);
-        if (sameOrder) {
+        if(sameOrder){
             res.add(ad_2);
-        } else {
+        }else{
             res.add(ad_1);
         }
         clip = concatBetween(timeStamps.get(3), allBytes.size());	// after second ad
