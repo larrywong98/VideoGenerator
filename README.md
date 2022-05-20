@@ -1,9 +1,9 @@
 # CSCI576 Multimudia Systems Design Final Project
-- TODO: 
-  - sync audio and video/add user interface
-  - detect colors
+
+- What we have done:
+  - sync audio and video with multithread
+  - add user interface Play/Pause/Stop
+  - detect logo and bound box around the logo
   - cut video in shots to remove unrelative ads/insert corresponding ads
+  - Manuelly play media at a fixed rate 30 fps
   
-- Problems to be solved
-  - hue varies too much, cannot detect under different sunlight/detect wrong color
-  - when two brands have similar hue, cannot distinguish the correct one (potential sol: vote OR bitwiseAND)
